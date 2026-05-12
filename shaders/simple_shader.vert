@@ -11,13 +11,13 @@ layout(location = 2) out vec3 fragNormalWorld;
 layout(location = 3) out vec2 fragUV;
 
 // Set and binding should match the descriptor set layout
-layout(set = 0, binding = 0) uniform GlobalUBO
+layout(set = 0, binding = 0) uniform GlobalUBO  
 {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor; // w is intensity
     vec3 lightPosition;
     vec4 lightColor;
-    vec2 windPos;           // Phase 5: GPU vertex deformation (scaled wind vector)
+    vec2 windPos;           // Phase 5: GPU vertex deformation (scaled wind vector) > Wind direction
 } ubo;
 
 // Note 128 bytes can only contain 2 4x4 matrices, so we run into the limitation

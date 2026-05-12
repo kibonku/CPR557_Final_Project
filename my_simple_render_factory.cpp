@@ -130,7 +130,7 @@ void MySimpleRenderFactory::_renderNode(
         // [3][3] is unused by the shader's mat3(normalMatrix) read.
         // We repurpose it as a deform-enable flag: 1.0 = leaf, 0.0 = everything else.
         bool isLeaf = node->getName().rfind("leaf", 0) == 0;
-        bool isPot  = (node->getName() == "pot" || node->getName() == "built_pot");
+        bool isPot  = (node->getName() == "pot" || node->getName() == "user_pot");
         bool isStem = (node->getName() == "stem");
         push.normalMatrix[3][3] = isLeaf ? 1.0f : 0.0f;
         push.normalMatrix[3][2] = isPot  ? 1.0f

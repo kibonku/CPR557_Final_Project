@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) uniform GlobalUBO
     vec4 lightColor;
 } ubo;
 
+// The pot samples a PNG image texture
 layout(set = 0, binding = 1) uniform sampler2D potTex;
 
 layout(push_constant) uniform Pushdata

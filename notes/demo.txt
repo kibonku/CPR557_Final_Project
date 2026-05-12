@@ -5,21 +5,47 @@ CPRE 557 Final Project — 3–5 Minute Demo Script
 BEFORE YOU START
 ----------------
 1. Build:  ./compile-unx.bat or ./compile-win.bat
-2. Run:    ./FinalPlant   (or whatever the binary is named)
+2. Run:    ./FinalPorject.exe   
 3. App starts in Navigation Mode showing the plant scene.
    Terminal will print the control key summary.
 
 ---------------------------------------------------
+OPENING – Project Introduction  (~20 sec)
+---------------------------------------------------
+SAY:     "My final project is an interactive 3D plant modeling application
+          built on Vulkan.
+
+          The core idea is to let the user design a custom pot by placing
+          Bezier control points, while a pre-built plant — stem and three
+          leaves — sits above it, all connected through a hierarchical
+          scene graph.
+
+          It demonstrates seven phases: Bezier surface construction,
+          interactive surface of revolution, scene graph with parent-child transforms, 
+          camera navigation, real-time wind simulation,
+          Bezier control-point animation, and texture mapping as the stretch goal."
+
+---------------------------------------------------
 SEGMENT 1 – Plant Scene Overview  (~45 sec)
 ---------------------------------------------------
-ACTION:  The app opens. The plant (pot + stem + 3 leaves) is visible.
-SAY:     "The application loads a pre-built plant scene on startup.
-          The plant is composed of five Bezier revolution surfaces
-          organized in a scene graph hierarchy."
+ACTION:  The app opens. The plant (stem + 3 leaves) is visible. No pot yet.
+SAY:     "The application loads a pre-built plant scene on startup (hardcoded control points).
+          The stem and pot are a Bezier revolution surface — a 2D profile
+          revolved around an axis with analytic normals.
+          The three leaves are flat parametric meshes (_makeFlatLeafNode)
+          — width, camber(beam), and droop are each controlled by Bezier control points.
+          All four nodes are organized in a scene graph hierarchy.
+          The pot slot is empty for now — I will build it live in edit mode."
+
+What	                        Reality
+At startup	                stem + 3 leaves only — no pot
+Pre-built revolution surface	stem only
+User-built revolution surface	pot (Phase 2, edit mode)
+Node count at startup	        4 visible nodes (stem, leaf1, leaf2, leaf3)
 
 ACTION:  Press F to fit-all so the whole plant is centered.
 ACTION:  Hold R and drag the mouse slowly to orbit around the plant.
-SAY:     "Rotating the camera shows the pot, stem, and three leaves
+SAY:     "Rotating the camera shows the stem and three leaves
           arranged at 120-degree intervals around the stem axis."
 
 ---------------------------------------------------
@@ -28,8 +54,9 @@ SEGMENT 2 – Scene Graph Traversal  (~45 sec)
 ACTION:  Press Tab to print the scene graph to the terminal.
          Show the terminal output briefly.
 SAY:     "Here is the scene graph hierarchy:
-          plant_root → pot, stem, leaves_group → leaf1, leaf2, leaf3.
-          Parent transforms propagate to all children."
+          plant_root → user_pot, stem, leaves_group → leaf1, leaf2, leaf3.
+          user_pot has no model yet — its slot is reserved for the pot
+          I will build in edit mode. Parent transforms propagate to all children."
 
 ACTION:  Press N several times, showing each node name printed in the terminal.
          The currently selected node will spin visually.
@@ -45,10 +72,11 @@ ACTION:  Hold W and move the mouse slowly to the left. Leaves bend left.
 ACTION:  Move the mouse to the right. Leaves bend right.
 ACTION:  Move the mouse up. Leaves bend upward.
 SAY:     "Holding W and moving the mouse sets the wind direction.
-          The three leaf nodes rotate around their local Z-axis each frame
-          using the scene graph's parent-child transform chain —
-          so the leaves bend relative to their position on the stem, not
-          relative to world coordinates."
+          The wind vector is passed to the GPU each frame via a uniform buffer.
+          In the vertex shader, each leaf vertex is displaced by
+          windPos times a weight equal to clamp(position.x, 0, 1) —
+          so the root of the leaf is anchored and the tip deflects maximally.
+          This is a linear approximation of cantilever beam deflection."
 
 ---------------------------------------------------
 SEGMENT 4 – Camera Navigation  (~30 sec)
@@ -57,8 +85,8 @@ ACTION:  Press P, drag to pan the scene left and right.
 ACTION:  Press Z, drag to zoom in close to the pot.
 ACTION:  Press T, drag to roll/twist the camera.
 ACTION:  Press F to snap back to fit-all.
-SAY:     "Camera navigation includes rotate, pan, zoom, twist, and fit-all —
-          carried over from HW4 and corrected for this project."
+SAY:     "Camera navigation includes rotate, pan, zoom, twist, and 
+          fit-all carried over from HW4 and corrected for this project."
 
 ---------------------------------------------------
 SEGMENT 5 – Bezier Surface Editor  (~60 sec)
@@ -71,7 +99,7 @@ SAY:     "Pressing SPACE enters edit mode. In edit mode I can interactively
 ACTION:  Click 5–6 points in the upper half of the screen to form a profile
          (e.g., click from left to right, making a gentle curve like a vase).
 SAY:     "Each click places a control point. The Bezier curve is shown in
-          white; control points in red with a yellow polygon."
+          white (press G); control points in red with a yellow polygon."
 
 ACTION:  Press B to build the revolution surface.
 SAY:     "Pressing B generates the surface of revolution by rotating the
@@ -118,3 +146,35 @@ SAY:     "To summarize: the application demonstrates Bezier curve evaluation,
 ACTION:  Press F to show the full plant one final time.
 
 ===================================================
+
+Key talking points for Q&A
+
+* Sorry, my mind just went blank. I’ll check on that and add it to the report.
+
+* My Question * 
+I tried to map a leaf texture image to the procedural leaves (pre-built) like an 1:1 mapping. 
+But each leaf size is not exactly same each other, I just textured them using a gradient (toggleColorGradient) and procedural veins (sin function). 
+
+"How does texture mapping work?"
+Download a texture image from https://ambientcg.com/
+The fragment shader receives a flag in push.normalMatrix[3][2]: 1=sample pot_texture.png from a Vulkan sampler, 2=run the procedural leaf GLSL function, 3=run the procedural stem function.
+
+"How does wind work?"
+Wind direction is a vec2 in the GlobalUBO. The vertex shader displaces each leaf vertex by windPos * weight, where weight = clamp(position.x, 0, 1) — a linear approximation of cantilever beam deflection.
+
+"How does the scene graph enforce parent-child transforms?"
+DFS traversal accumulates a world matrix by multiplying parent transforms down the chain before drawing each node. Moving leaves_group moves all three leaves together.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

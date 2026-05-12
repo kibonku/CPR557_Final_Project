@@ -65,14 +65,16 @@ MySceneGraphNode* MySceneGraphNode::traverseNext(MySceneGraphNode* pCurrent)
 
     if (nodes.empty()) return nullptr;
 
-    // Find pCurrent in the flat list and advance one step
+    // Find pCurrent in the flat list and advance one step.
+    // After the last node, return nullptr (deselect) before cycling back.
     for (int i = 0; i < (int)nodes.size(); ++i)
     {
         if (nodes[i] == pCurrent)
         {
-            int next = (i + 1) % (int)nodes.size();
-            nodes[next]->setCurrent(true);
-            return nodes[next];
+            if (i + 1 == (int)nodes.size())
+                return nullptr;   // last node → deselect
+            nodes[i + 1]->setCurrent(true);
+            return nodes[i + 1];
         }
     }
 

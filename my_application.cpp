@@ -21,10 +21,13 @@
 #include <cmath>
 
 // ============================================================
-// buildFlatLeafMesh — single-layer parametric flat leaf
+// Phase 1: buildFlatLeafMesh — pre-built leaf geometry
+//   Constructs the parametric flat leaf mesh used by the plant scene.
 //   position.x ∈ [0,1]  = axial (root→tip)
 //   position.z = v * halfWidth(u)  (lateral, -halfW to +halfW)
 //   position.y = camber*(1-v²)     (arch: high at midrib, zero at edges)
+//   Width profile is evaluated via de Casteljau on widthCP each frame
+//   (Phase 6 re-calls this every frame to animate the shape).
 // VK_CULL_MODE_NONE renders both sides; normals point generally +Y.
 // Reversed winding so the computed face normal points UP.
 // ============================================================
@@ -100,15 +103,18 @@ static void buildFlatLeafMesh(
 }
 
 // ============================================================
-// Global UBO  (HW5 — lighting data sent to shaders each frame)
+// GlobalUBO — per-frame uniform data written to the GPU each frame.
+//   Phase 4: projectionView = projection * view matrix (camera navigation)
+//   Phase 5: windPos        = wind direction vector (GPU vertex deformation)
+//   Lighting (ambient/diffuse Phong) shared across all phases.
 // ============================================================
 struct MyGlobalUBO
 {
-    alignas(16) glm::mat4 projectionView{ 1.0f };
+    alignas(16) glm::mat4 projectionView{ 1.0f };        // Phase 4: camera
     alignas(16) glm::vec4 ambientLightColor{ 1.0f, 1.0f, 1.0f, 0.06f };
     alignas(16) glm::vec3 lightPosition{ 2.0f, 3.0f, 2.0f };
     alignas(16) glm::vec4 lightColor{ 1.0f, 1.0f, 1.0f, 1.0f };
-    alignas( 8) glm::vec2 windPos{ 0.0f, 0.0f };  // Phase 5: GPU vertex deformation
+    alignas( 8) glm::vec2 windPos{ 0.0f, 0.0f };         // Phase 5: GPU vertex deformation
 };
 
 // ============================================================
@@ -246,7 +252,10 @@ MyApplication::~MyApplication()
 }
 
 // ============================================================
-// Constructor
+// Constructor — initialization order mirrors the phase structure:
+//   Phase 7: _createTexture  — load pot PNG into Vulkan image
+//   Phase 1: _loadGameObjects → _buildPlantScene  — build geometry + scene graph
+//   Phase 4: setViewTarget   — place camera for the opening navigation view
 // ============================================================
 MyApplication::MyApplication() : m_bPerspectiveProjection(true)
 {
@@ -257,18 +266,26 @@ MyApplication::MyApplication() : m_bPerspectiveProjection(true)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MySwapChain::MAX_FRAMES_IN_FLIGHT)
         .build();
 
+    // Phase 7: upload pot_texture.png to a device-local VkImage + sampler
     _createTexture("textures/pot_texture.png",
                    m_potTexImage, m_potTexMemory, m_potTexView, m_potTexSampler);
 
+    // Phase 1 + 2 + 3: build edit-mode overlays and the plant scene graph
     _loadGameObjects();
 
-    // Default view: navigation mode, plant centered with comfortable framing.
+    // Phase 4: default view — pull camera back so the full plant is visible
     // Plant spans ~-0.85 to +0.9 in world Y, ~±1.0 in world X — pull camera back to z=-5.
     m_myCamera.setViewTarget(glm::vec3(0.f, 0.0f, -5.0f), glm::vec3(0.f, 0.0f, 0.0f));
 }
 
 // ============================================================
-// Main render loop
+// Main render loop — all phases converge here each frame:
+//   Phase 4: arrow-key camera navigation + projection matrix
+//   Phase 5: write windPos into GlobalUBO → GPU vertex deformation
+//   Phase 6: _animateLeaves — CPU rebuild of leaf vertex data
+//   Phase 3: renderSceneGraph — DFS traversal + selected-node spin
+//   Phase 2: edit-mode overlays (control points, Bezier curve, surface)
+//   Phase 7: pot texture bound to descriptor set (set once before loop)
 // ============================================================
 void MyApplication::run()
 {
@@ -337,7 +354,7 @@ void MyApplication::run()
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
         currentTime     = newTime;
 
-        // --- Keyboard camera navigation (navigation mode only) ---
+        // Phase 4: arrow-key camera navigation (navigation mode only)
         if (!m_bCreateModel)
         {
             GLFWwindow* win = m_myWindow.glfwWindow();
@@ -365,16 +382,18 @@ void MyApplication::run()
         if (!m_bCreateModel && m_pSceneRoot)
             _animateLeaves(frameTime);
 
-        // Wind bending is handled entirely by GPU vertex deformation (windPos in GlobalUBO).
+        // Phase 5: wind bending handled by GPU vertex deformation (windPos in GlobalUBO).
         // Scene-graph rotation on leavesGroup is not used — rigid-body rotation causes
         // a seesaw artifact because leaves extend from the pivot in different directions.
 
-        // --- Selected scene graph node spins (HW3 creativity — visual indicator) ---
+        // Phase 3: selected scene graph node spins as a visual DFS-selection indicator
+        // 45 degrees/sec — frame-rate independent via frameTime
         if (m_pCurrentNode)
             m_pCurrentNode->transform.rotation.y = glm::mod(
-                m_pCurrentNode->transform.rotation.y + 0.015f, glm::two_pi<float>());
+                m_pCurrentNode->transform.rotation.y + glm::radians(45.0f) * frameTime,
+                glm::two_pi<float>());
 
-        // --- Camera projection ---
+        // Phase 4: set camera projection matrix (perspective in nav, ortho in edit)
         float ar = m_myRenderer.aspectRatio();
         if (m_bPerspectiveProjection)
             m_myCamera.setPerspectiveProjection(glm::radians(50.f), ar, 0.1f, 100.f);
@@ -388,19 +407,20 @@ void MyApplication::run()
                                    globalDescriptorSets[fi], glm::vec3(1.f) };
 
             MyGlobalUBO ubo{};
-            ubo.projectionView = m_myCamera.projectionMatrix() * m_myCamera.viewMatrix();
-            ubo.windPos        = m_windPos;
+            ubo.projectionView = m_myCamera.projectionMatrix() * m_myCamera.viewMatrix(); // Phase 4
+            ubo.windPos        = m_windPos;   // Phase 5: GPU vertex deformation vector
             uboBuffers[fi]->writeToBuffer(&ubo);
             uboBuffers[fi]->flush();
 
             m_myRenderer.beginSwapChainRenderPass(cb);
 
-            // 1. Plant scene (scene graph traversal — HW3 pattern)
+            // Phase 3: DFS scene graph traversal — draws plant_root and all descendants
             if (m_pSceneRoot)
                 simpleRF.renderSceneGraph(frameInfo, m_pSceneRoot);
 
-            // 2 & 3. HW5 overlays + surface preview — edit mode only
-            // Navigation mode: built pot is rendered via renderSceneGraph (scene graph node)
+            // Phase 2: edit-mode overlays (Bezier control points, curve, center line,
+            //          surface preview, normals) — active only while m_bCreateModel is true.
+            //          In navigation mode the built pot is part of the scene graph above.
             if (m_bCreateModel)
             {
                 simpleRF.renderGameObjects(frameInfo, m_vMyGameObjects);
@@ -428,8 +448,11 @@ void MyApplication::run()
 }
 
 // ============================================================
-// _makePlantNode: build one Bezier revolution surface and return
-// it wrapped in a scene graph leaf node.
+// Phase 1: _makePlantNode — Bezier revolution surface → scene graph leaf
+//   Evaluates the Bezier profile with de Casteljau, revolves it around X,
+//   tints all vertices with the given color, and wraps the MyModel in a
+//   MySceneGraphNode ready to be attached to the plant hierarchy.
+//   dynamic=true allocates an updatable VkBuffer (used for live-animated nodes).
 // ============================================================
 std::shared_ptr<MySceneGraphNode> MyApplication::_makePlantNode(
     const std::string& name,
@@ -438,7 +461,7 @@ std::shared_ptr<MySceneGraphNode> MyApplication::_makePlantNode(
     int xRes, int rRes, bool dynamic /*= false*/)
 {
     auto bezier = std::make_shared<MyBezier>();
-    bezier->setColorGradient(false);
+    bezier->setColorGradient(false);  // Phase 7: texture
     for (auto& cp : controlPoints)
         bezier->addControlPoint(cp.x, cp.y);
     bezier->createRevolutionSurface(xRes, rRes);
@@ -465,7 +488,9 @@ std::shared_ptr<MySceneGraphNode> MyApplication::_makePlantNode(
 }
 
 // ============================================================
-// _makeFlatLeafNode: build a flat leaf mesh and wrap in a scene graph node.
+// Phase 1: _makeFlatLeafNode — parametric flat leaf → scene graph leaf
+//   Calls buildFlatLeafMesh to generate position/normal/UV data, then
+//   uploads it as a dynamic VkBuffer so Phase 6 can update it every frame.
 // ============================================================
 std::shared_ptr<MySceneGraphNode> MyApplication::_makeFlatLeafNode(
     const std::string& name,
@@ -477,24 +502,29 @@ std::shared_ptr<MySceneGraphNode> MyApplication::_makeFlatLeafNode(
     std::vector<uint32_t> idx;
     buildFlatLeafMesh(widthCP, camber, bendAmount, color, uRes, vRes, verts, idx);
 
-    static int leafNodeID = 300;
+    static int leafNodeID = 300; //it's just chosen to be far enough from 100 that the ranges never collide no matter how many nodes are created.
     auto node = std::make_shared<MySceneGraphNode>(name, leafNodeID++);
     node->model = std::make_shared<MyModel>(m_myDevice, verts, idx, true);
     return node;
 }
 
 // ============================================================
-// _buildPlantScene  — builds the scene graph hierarchy
+// Phase 1 + Phase 3: _buildPlantScene
 //
-//   plant_root (group)
-//   ├── pot   (leaf)
-//   ├── stem  (leaf)
-//   └── leaves_group (group)
-//       ├── leaf1 (leaf)
-//       ├── leaf2 (leaf, rotated 120° around Y)
-//       └── leaf3 (leaf, rotated 240° around Y)
+//   Phase 1 — constructs pre-built geometry for pot, stem, and leaves
+//              using Bezier control points and surface-of-revolution.
 //
-// Wind updates leaf1/2/3 rotation.z each frame.
+//   Phase 3 — organises all nodes into a scene graph hierarchy:
+//
+//   plant_root (group — global scale + translation)
+//   ├── user_pot (leaf — null model; filled in when user builds via Phase 2)
+//   ├── stem      (leaf — Bezier revolution surface)
+//   └── leaves_group (group — positioned at stem tip)
+//       ├── leaf1 (leaf — Y=0°,   Phase 6 animates each frame)
+//       ├── leaf2 (leaf — Y=120°, Phase 6 animates each frame)
+//       └── leaf3 (leaf — Y=240°, Phase 6 animates each frame)
+//
+//   Parent transforms propagate to all descendants via DFS in renderSceneGraph.
 // ============================================================
 void MyApplication::_buildPlantScene()
 {
@@ -503,22 +533,6 @@ void MyApplication::_buildPlantScene()
     m_pSceneRoot = std::make_shared<MySceneGraphNode>("plant_root", gID++);
     m_pSceneRoot->transform.translation = glm::vec3(0.0f, -0.5f, 0.0f);
     m_pSceneRoot->transform.scale       = glm::vec3(0.80f);
-
-    // ---- Pot: classic terracotta flower-pot profile ----
-    // X = axial (left = rim/top after -90° Z rotation, right = base/bottom)
-    // Y = radius at each height
-    // Shape: wide flared rim → necks in slightly → tapers to narrow base
-    std::vector<glm::vec2> potCP = {
-        {-0.50f, 0.70f},  // top rim: wide
-        {-0.38f, 0.60f},  // neck just below rim
-        { 0.00f, 0.52f},  // mid body
-        { 0.35f, 0.42f},  // lower body
-        { 0.50f, 0.36f},  // base: narrowest
-        { 0.50f, 0.36f},  // clamped tangent (flat base)
-    };
-    auto pot = _makePlantNode("pot", potCP, glm::vec3(0.78f, 0.42f, 0.22f), 60, 48);
-    pot->transform.translation = glm::vec3(0.0f, 0.0f, 0.0f);
-    pot->transform.rotation    = glm::vec3(0.0f, 0.0f, -glm::half_pi<float>());
 
     // ---- Stem: gently tapering green cylinder ----
     std::vector<glm::vec2> stemCP = {
@@ -569,11 +583,11 @@ void MyApplication::_buildPlantScene()
 
     // pot is NOT added at startup — user live-builds it in edit mode (press SPACE → click → B)
     // Pre-register the live-built pot node (null model until user builds in edit mode)
-    m_pBuiltPotNode = std::make_shared<MySceneGraphNode>("built_pot", gID++);
+    m_pBuiltPotNode = std::make_shared<MySceneGraphNode>("user_pot", gID++);
     m_pBuiltPotNode->transform.scale       = glm::vec3(1.0f / 0.7f);
     m_pBuiltPotNode->transform.translation = glm::vec3(0.0f, 0.5f / 0.7f, 0.0f);
-    // m_pBuiltPotNode->transform.rotation    = glm::vec3(0.0f, 0.0f, glm::half_pi<float>());
-    // [수정] 이미 메쉬가 서 있으므로 90도 회전(half_pi)을 0으로 바꿉니다.
+    // The mesh already stands upright after the axis swap in createBezierRevolutionSurface,
+    // so no 90-degree Z rotation is needed here (half_pi removed).
     m_pBuiltPotNode->transform.rotation    = glm::vec3(0.0f, 0.0f, 0.0f);
     m_pSceneRoot->addChild(m_pBuiltPotNode);
 
@@ -585,7 +599,14 @@ void MyApplication::_buildPlantScene()
 }
 
 // ============================================================
-// _loadGameObjects — HW5 edit-mode overlay objects
+// Phase 2: _loadGameObjects — initialise edit-mode overlay game objects
+//   Creates the flat MyGameObject list used only while in edit mode:
+//     control_points  — red dots at each user click
+//     center_line     — blue vertical axis of revolution
+//     bezier_curve    — white Bezier profile curve
+//     bezier_surface  — preview of the revolution surface (B key)
+//     surface_normals — green normal vectors (Shift+N toggle)
+//   Then calls _buildPlantScene to set up Phase 1/3 content.
 // ============================================================
 void MyApplication::_loadGameObjects()
 {
@@ -629,7 +650,11 @@ void MyApplication::_loadGameObjects()
 }
 
 // ============================================================
-// Wind direction
+// Phase 5: setWindPos — receive wind direction from keyboard controller
+//   Called while W is held. nx/ny are normalised mouse delta values.
+//   Stores the scaled result in m_windPos, which is written into
+//   GlobalUBO.windPos each frame for GPU vertex deformation in the
+//   vertex shader (weight = clamp(position.x, 0, 1) — cantilever model).
 // ============================================================
 
 void MyApplication::setWindPos(float nx, float ny)
@@ -681,13 +706,22 @@ void MyApplication::_animateLeaves(float dt)
 }
 
 // ============================================================
-// HW5 camera / mode controls  (unchanged from HW5)
+// Phase 4: camera navigation + projection controls
+//   switchProjectionMatrix — toggles perspective ↔ orthographic (C key)
+//   mouseButtonEvent       — routes clicks: edit mode → place control point;
+//                            nav mode  → camera button press/release
+//   mouseMotionEvent       — forwards mouse delta to MyCamera in nav mode
+//   setCameraNavigationMode — sets orbit / pan / zoom / twist / fit-all mode
+//   switchEditMode (SPACE) — toggles between edit and navigation mode;
+//                            also syncs the user-built pot into the scene graph
 // ============================================================
 void MyApplication::switchProjectionMatrix()
 {
     m_bPerspectiveProjection = !m_bPerspectiveProjection;
 }
 
+// Phase 2 (edit mode path): place Bezier control point on left-click
+// Phase 4 (nav mode path):  forward button state to MyCamera
 void MyApplication::mouseButtonEvent(bool bMouseDown, float posx, float posy)
 {
     if (m_bCreateModel && bMouseDown)
@@ -748,6 +782,12 @@ void MyApplication::setCameraNavigationMode(MyCamera::MyCameraMode mode)
     m_myCamera.setMode(mode);
 }
 
+// Phase 2 + Phase 3 + Phase 4: switchEditMode (SPACE key)
+//   Toggles between edit mode and navigation mode.
+//   → Edit mode:  ortho projection, 2D top-down view, hide user_pot from scene graph
+//                 (it's drawn as a game-object preview instead — Phase 2).
+//   → Nav mode:   perspective projection, fit-all camera reset (Phase 4),
+//                 sync m_pBuiltPotModel back into the scene graph (Phase 3).
 void MyApplication::switchEditMode()
 {
     m_bCreateModel           = !m_bCreateModel;
@@ -755,19 +795,20 @@ void MyApplication::switchEditMode()
     if (m_bPerspectiveProjection)
     {
         std::cout << "Navigation mode [R=rotate P=pan Z=zoom F=fit-all W+mouse=wind]\n";
-        // Sync built pot into scene graph so it moves with the plant
+        // Phase 3: sync built pot into scene graph so it moves with the plant
         if (m_pBuiltPotNode) m_pBuiltPotNode->model = m_pBuiltPotModel;
-        setCameraNavigationMode(MyCamera::MYCAMERA_FITALL);
+        setCameraNavigationMode(MyCamera::MYCAMERA_FITALL); // Phase 4
     }
     else
     {
         std::cout << "Edit mode [click RIGHT of vertical line: up=rim, down=base, right=wider]\n";
-        // Hide from scene graph while editing (rendered via game object preview instead)
+        // Phase 3: hide from scene graph while editing (Phase 2 game-object renders it instead)
         if (m_pBuiltPotNode) m_pBuiltPotNode->model = nullptr;
-        m_myCamera.setViewYXZ(glm::vec3(0,0,10), glm::vec3(0));
+        m_myCamera.setViewYXZ(glm::vec3(0,0,10), glm::vec3(0)); // Phase 4: 2D edit view
     }
 }
 
+// Phase 2: resetSurface — clear all control points and the built surface (M key)
 void MyApplication::resetSurface()
 {
     m_myDevice.waitIdle();
@@ -788,12 +829,18 @@ void MyApplication::resetSurface()
     std::cout << "Surface reset.\n";
 }
 
+// Phase 2: showHideNormalVectors — toggle surface normal display (Shift+N key)
 void MyApplication::showHideNormalVectors()
 {
     m_bShowNormals = !m_bShowNormals;
     std::cout << (m_bShowNormals ? "Show" : "Hide") << " normals.\n";
 }
 
+// Phase 2: createBezierRevolutionSurface — build the pot surface from current control points (B key)
+//   Calls MyBezier::createRevolutionSurface, then swaps position.x ↔ position.y
+//   so the X-axis revolution result stands upright along the Y axis.
+//   Normal vectors are swapped the same way so Phong lighting remains correct.
+//   Stores the result in m_pBuiltPotModel for Phase 3 sync on mode switch.
 void MyApplication::createBezierRevolutionSurface()
 {
     if (m_pMyBezier->numberOfControlPoints() < 2)
@@ -802,18 +849,18 @@ void MyApplication::createBezierRevolutionSurface()
     m_vNormalVectors.clear();
     m_pMyBezier->createRevolutionSurface(m_iXResolution, m_iRResolution);
 
-    // [중요 수정] 생성된 모든 정점의 X(축)와 Y(반지름)를 스왑하여 
-    // X축 회전체를 Y축 회전체로 변환합니다.
+    // MyBezier revolves around the X-axis, so the axial direction comes out along X
+    // and the radius along Y. Swap them so the pot stands upright along the Y-axis.
     for (auto& v : m_pMyBezier->m_vSurface)
     {
-        float oldAxial = v.position.x; // 원래 X축 방향 길이
-        float oldRadiusX = v.position.y; // 원래 반지름 Cos 성분
-        
-        // 좌표 스왑: 높이를 Y로, 반지름을 XZ 평면으로 보냅니다.
-        v.position.x = oldRadiusX;   // 반지름 성분이 X로
-        v.position.y = oldAxial;     // 높이(Axial) 성분이 Y로 (서 있게 됨)
-        
-        // 법선(Normal)도 똑같이 스왑해줘야 조명이 제대로 나옵니다.
+        float oldAxial   = v.position.x; // axial length along X before swap
+        float oldRadiusX = v.position.y; // radius cosine component before swap
+
+        // Swap: height → Y (upright), radius → X (outward in XZ plane)
+        v.position.x = oldRadiusX;
+        v.position.y = oldAxial;
+
+        // Apply the same swap to the normal so Phong lighting stays correct.
         float oldNX = v.normal.x;
         float oldNY = v.normal.y;
         v.normal.x = oldNY;
@@ -857,6 +904,7 @@ void MyApplication::createBezierRevolutionSurface()
     std::cout << "Surface built: " << nv << " vertices.\n";
 }
 
+// Phase 2: toggleTwist — add a full helical rotation to the revolution surface (X key)
 void MyApplication::toggleTwist()
 {
     float next = (m_pMyBezier->getTwistAngle() < 0.01f) ? glm::two_pi<float>() : 0.0f;
@@ -865,6 +913,7 @@ void MyApplication::toggleTwist()
     if (m_bSurfaceExists) createBezierRevolutionSurface();
 }
 
+// Phase 2: toggleColorGradient — map hue to axial parameter u on the surface (G key)
 void MyApplication::toggleColorGradient()
 {
     bool next = !m_pMyBezier->getColorGradient();
@@ -879,13 +928,20 @@ void MyApplication::_rebuildSurface()
 }
 
 // ============================================================
-// HW3 scene graph controls
+// Phase 3: scene graph traversal controls
+//   traverseNextNode (N key) — DFS-cycles through all nodes;
+//     the selected node is stored in m_pCurrentNode and spins each frame
+//     in run() as a visual confirmation of the selection.
+//   printSceneGraph (Tab key) — prints the full hierarchy to the terminal.
 // ============================================================
 void MyApplication::traverseNextNode()
 {
     if (!m_pSceneRoot) return;
     m_pCurrentNode = m_pSceneRoot->traverseNext(m_pCurrentNode);
-    std::cout << "Selected node: " << m_pCurrentNode->getName() << "\n";
+    if (m_pCurrentNode)
+        std::cout << "Selected node: " << m_pCurrentNode->getName() << "\n";
+    else
+        std::cout << "Selection cleared.\n";
     m_pSceneRoot->printSceneGraph();
 }
 
