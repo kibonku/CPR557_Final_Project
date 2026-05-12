@@ -1,0 +1,120 @@
+===================================================
+CPRE 557 Final Project — 3–5 Minute Demo Script
+===================================================
+
+BEFORE YOU START
+----------------
+1. Build:  ./compile-unx.bat or ./compile-win.bat
+2. Run:    ./FinalPlant   (or whatever the binary is named)
+3. App starts in Navigation Mode showing the plant scene.
+   Terminal will print the control key summary.
+
+---------------------------------------------------
+SEGMENT 1 – Plant Scene Overview  (~45 sec)
+---------------------------------------------------
+ACTION:  The app opens. The plant (pot + stem + 3 leaves) is visible.
+SAY:     "The application loads a pre-built plant scene on startup.
+          The plant is composed of five Bezier revolution surfaces
+          organized in a scene graph hierarchy."
+
+ACTION:  Press F to fit-all so the whole plant is centered.
+ACTION:  Hold R and drag the mouse slowly to orbit around the plant.
+SAY:     "Rotating the camera shows the pot, stem, and three leaves
+          arranged at 120-degree intervals around the stem axis."
+
+---------------------------------------------------
+SEGMENT 2 – Scene Graph Traversal  (~45 sec)
+---------------------------------------------------
+ACTION:  Press Tab to print the scene graph to the terminal.
+         Show the terminal output briefly.
+SAY:     "Here is the scene graph hierarchy:
+          plant_root → pot, stem, leaves_group → leaf1, leaf2, leaf3.
+          Parent transforms propagate to all children."
+
+ACTION:  Press N several times, showing each node name printed in the terminal.
+         The currently selected node will spin visually.
+SAY:     "Pressing N cycles through each node in depth-first order.
+          The selected node spins so we can see which one is active.
+          When a group node is selected, the whole subtree moves with it —
+          that is the parent-child transform at work."
+
+---------------------------------------------------
+SEGMENT 3 – Wind Response  (~45 sec)
+---------------------------------------------------
+ACTION:  Hold W and move the mouse slowly to the left. Leaves bend left.
+ACTION:  Move the mouse to the right. Leaves bend right.
+ACTION:  Move the mouse up. Leaves bend upward.
+SAY:     "Holding W and moving the mouse sets the wind direction.
+          The three leaf nodes rotate around their local Z-axis each frame
+          using the scene graph's parent-child transform chain —
+          so the leaves bend relative to their position on the stem, not
+          relative to world coordinates."
+
+---------------------------------------------------
+SEGMENT 4 – Camera Navigation  (~30 sec)
+---------------------------------------------------
+ACTION:  Press P, drag to pan the scene left and right.
+ACTION:  Press Z, drag to zoom in close to the pot.
+ACTION:  Press T, drag to roll/twist the camera.
+ACTION:  Press F to snap back to fit-all.
+SAY:     "Camera navigation includes rotate, pan, zoom, twist, and fit-all —
+          carried over from HW4 and corrected for this project."
+
+---------------------------------------------------
+SEGMENT 5 – Bezier Surface Editor  (~60 sec)
+---------------------------------------------------
+ACTION:  Press SPACE to switch to Edit Mode.
+         Screen switches to orthographic, 2D view.
+SAY:     "Pressing SPACE enters edit mode. In edit mode I can interactively
+          define Bezier control points and generate a revolution surface."
+
+ACTION:  Click 5–6 points in the upper half of the screen to form a profile
+         (e.g., click from left to right, making a gentle curve like a vase).
+SAY:     "Each click places a control point. The Bezier curve is shown in
+          white; control points in red with a yellow polygon."
+
+ACTION:  Press B to build the revolution surface.
+SAY:     "Pressing B generates the surface of revolution by rotating the
+          Bezier profile around the X-axis using the analytic normal formula."
+
+ACTION:  Press Shift+N to toggle normals.
+SAY:     "The green lines are the surface normals used in Phong shading."
+
+ACTION:  Press G to toggle color gradient ON.
+SAY:     "The rainbow gradient maps hue to the axial parameter u."
+
+ACTION:  Press X to toggle helical twist.
+SAY:     "Twist adds a full helical rotation as the surface revolves."
+
+ACTION:  Press SPACE to return to Navigation Mode.
+ACTION:  Orbit around the user-built surface to show it in 3D.
+
+---------------------------------------------------
+SEGMENT 6 – Texture Mapping (Stretch Goal)  (~30 sec)
+---------------------------------------------------
+ACTION:  In Navigation Mode, orbit slowly around the pot and then the leaves.
+SAY:     "The stretch goal — texture mapping — is fully implemented.
+          The pot samples a PNG image texture loaded via stb_image and
+          uploaded to a Vulkan image sampler.
+          The leaves and stem use procedural GPU textures written in GLSL:
+          the leaf shader computes a three-stop axial gradient, a tapered
+          midrib, curved lateral veins with quadratic bend, sub-veins,
+          and high-frequency micro-surface variation — all per fragment.
+          The stem shader adds vertical stripes, horizontal node bands,
+          and a highlight strip.
+          The fragment shader selects the mode per object via a flag
+          packed into push constants."
+
+---------------------------------------------------
+SEGMENT 7 – Wrap-up  (~15 sec)
+---------------------------------------------------
+SAY:     "To summarize: the application demonstrates Bezier curve evaluation,
+          surface-of-revolution generation with analytic normals, a hierarchical
+          scene graph with DFS traversal, corrected camera navigation,
+          real-time GPU vertex deformation for wind simulation,
+          and full texture mapping — both image-based and procedural —
+          as the stretch goal."
+
+ACTION:  Press F to show the full plant one final time.
+
+===================================================
