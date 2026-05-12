@@ -1,0 +1,67 @@
+*** General instructions for CLAUDE CODE ***
+
+1. 논리적 타당성 검토
+2. 프로젝트 제안서(Phase 1~7) 부합 여부 확인
+3. 요약 정리 후 최종 승인 요청
+
+Keep in mind: Be my intellectual sparring partner. Re-examine every assumption I make and test whether those assumptions are valid. Do not consider my feelings. Respond coldly, based on facts, logic, feasibility, and data. I am not trying to justify my claims. I want to generate ideas that are genuinely sound and highly practical.
+
+
+*** Issues and Solutions ***
+
+축	의미
+X	좌우 (화면 좌우 = world X)
+Y	위아래 (줄기 방향, 화면 상하 = world Y)
+Z	깊이 (카메라 방향 = 화면 안/밖)
+That is:
+Zoom in/out = 카메라가 Z축으로 이동 = Z = depth 방향 (깊이 (카메라 방향 = 화면 안/밖))
+Screen 좌/우 = world X
+Screen 상/하 = world Y (줄기 방향)
+
+현재 rotation.z의 문제:
+leavesGroup.rotation.z는 leavesGroup 전체를 Z축 기준으로 rigid body 회전시킵니다. 
+잎들이 leavesGroup 피벗(Y=1.7) 주위에 퍼져 있으니:
++X 쪽 잎 → 아래로 내려감
+-X 쪽 잎 → 위로 올라감
+→ 시소 효과 (사용자가 보고한 "좌우로 움직이면 잎이 위/아래로 회전해")
+
+① Top-view에서 0°, 120°, 240° (Y축 기준)
+네, Y축을 기준으로 rotation입니다. 줄기 꼭대기에서 내려다보면:
+        leaf1 (0°)
+          ↑
+          |
+leaf3 ←---+---→ (X)
+(240°)    |
+     leaf2 (120°)
+
+② GPU vertex deformation 방어 논리
+이 기법은 실시간 그래픽스의 표준 식물 바람 시뮬레이션 기법입니다.
+잎을 한쪽이 고정된 **cantilever beam**로 모델링하면, 균일한 횡하중 하에서 변위는 고정점에서의 거리에 따라 증가합니다. 
+저희 구현의 weight = clamp(position.x, 0.0, 1.0)은 이것의 선형 근사입니다.
+
+>>> So, you can defend it like this:
+"This is a linear approximation of cantilever beam deflection under lateral wind load. 
+The root vertex is anchored (weight=0), the tip moves maximally (weight=1), and intermediate vertices interpolate smoothly."
+
+>>> Perpendicular method to solve the axial strech issue:
+To prevent axial stretching, we can compute the wind-induced displacement as a vector perpendicular to the leaf's local tangent direction. 
+This way, the leaf bends without stretching along its length, maintaining a more natural deformation.
+
+>>> Issue 1: 마우스 위치 자체는 방향이 아닙니다. 방향은 시작점 → 현재점의 벡터여야 합니다:
+  W 처음 누를 때: 시작점 저장
+  W 누른 상태에서 드래그: wind = 현재 위치 - 시작점 → 방향 + 크기
+  W 뗄 때: wind = 0, 시작점 리셋
+>>> Issue 4: 최대 바람 세기 제한 없음: 마우스를 멀리 드래그할수록 dx/dy가 커져서, 잎이 극단적으로 변형될 수 있습니다:
+  드래그 방향이 바람 방향, 세기는 kWindScale로 고정
+  
+
+③ GPU deformation이 뭐야? MacBook에 GPU 없는데?
+MacBook에 GPU 있습니다. M-시리즈 칩(M1/M2/M3/M4) 안에 Apple Silicon GPU가 내장되어 있습니다.
+GPU deformation = 렌더링할 때마다 GPU가 vertex shader를 실행하면서 각 vertex 위치를 계산합니다. 
+이 shader 안에서 localPos를 수정하면, CPU가 아닌 GPU에서 수만 개의 vertex를 동시에 이동시킵니다. 이것이 "GPU에서 deformation(변형) 계산"입니다.
+Mac에서 Vulkan은 MoltenVK를 통해 Apple GPU 위에서 실행됩니다.
+
+
+
+
+
