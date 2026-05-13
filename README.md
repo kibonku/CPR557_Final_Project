@@ -6,13 +6,16 @@
 ![Vulkan](https://img.shields.io/badge/Vulkan-API-AC162C?style=flat&logo=vulkan&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat)
 ![Phases](https://img.shields.io/badge/Phases-7%2F7%20Complete-brightgreen?style=flat)
-![Stretch Goal](https://img.shields.io/badge/Stretch%20Goal-Texture%20Mapping%20✓-blue?style=flat)
 
 ---
 
 ## Overview
 
 **Interactive Plant Modeler** procedurally constructs a complete potted plant scene from Bézier geometry, lets users design their own pot live at runtime, and simulates environmental wind response using GPU vertex deformation — all built on the **Vulkan** graphics API in C++17.
+
+<div align="center">
+  <img src="demo.gif" alt="demo" width="700">
+</div>
 
 ---
 
@@ -143,10 +146,19 @@ FinalProject.exe      # Windows
 
 ## Known Limitations
 
-- Leaf opacity map shows rendering artefacts under certain lighting angles
-- Surface-of-revolution pot requires 5–6 control points for stable triangulation
 - Wind deformation is a linear cantilever approximation; extreme directions may cause visible stretching
-- No save/load for user-defined pot profiles
+- The plant model is pre-built and hardcoded; users cannot import or customize plant geometry at runtime
+- Only one plant can be displayed in the scene at a time
+- Bézier control points cannot be adjusted after placement; must clear all and restart with `M`
+
+---
+
+## Potential Future Improvements
+
+- Physics-based spring–damper wind model replacing the linear cantilever approximation
+- Adding a GUI bar to allow user to import .obj files and texture image files, or to export generated pot geometry to OBJ/glTF for use in external tools
+- GUI overlay (Dear ImGui) for real-time control-point editing with drag handles
+- Multi-plant scene with instanced rendering
 
 ---
 
