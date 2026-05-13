@@ -1,59 +1,27 @@
-# 🌿 Interactive Plant Modeler
+# Interactive Plant Modeler
 
-> Real-time 3D plant modeling application — CPR 557 Final Project, Iowa State University, Spring 2026
-
-![C++](https://img.shields.io/badge/C++-17-00599C?style=flat&logo=cplusplus&logoColor=white)
-![Vulkan](https://img.shields.io/badge/Vulkan-API-AC162C?style=flat&logo=vulkan&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat)
-![Phases](https://img.shields.io/badge/Phases-7%2F7%20Complete-brightgreen?style=flat)
-![Stretch Goal](https://img.shields.io/badge/Stretch%20Goal-Texture%20Mapping%20✓-blue?style=flat)
-
----
-
-## Overview
-
-**Interactive Plant Modeler** procedurally constructs a complete potted plant scene from Bézier geometry, lets users design their own pot live at runtime, and simulates environmental wind response using GPU vertex deformation — all built on the **Vulkan** graphics API in C++17.
+A real-time 3D plant modeling application built with **Vulkan** for CPRE 557 (Computer Graphics). Procedurally generates plant geometry from Bézier curves, supports interactive pot design via surface of revolution, and simulates wind response through a hierarchical scene graph.
 
 ---
 
 ## Features
 
 ### Core
-- **Procedural Bézier geometry** — stem, leaves, and pot built from Bézier profiles evaluated with the de Casteljau algorithm
-- **Surface of revolution** — 2D Bézier profile revolved around the Y-axis to produce 3D geometry with analytic normals
-- **Hierarchical scene graph** — `plant_root → pot, stem, leaves_group → leaf1/2/3` with parent-to-child transform propagation
-- **Interactive pot editor** — click to place control points, press `B` to generate a new pot live at runtime
+- **Procedural Bézier geometry** — all surfaces (pot, stem, leaves) are built from Bézier profiles evaluated with the de Casteljau algorithm
+- **Surface of revolution** — a 2D Bézier profile is revolved around an axis to produce 3D geometry with analytic normals
+- **Hierarchical scene graph** — `plant_root → pot, stem, leaves_group → leaf1, leaf2, leaf3` with parent-to-child transform propagation
+- **Interactive pot editor** — place control points by clicking, then press `B` to generate a new pot live at runtime
 - **Camera navigation** — orbit, pan, zoom, twist, and fit-all
-- **Wind simulation** — GPU vertex deformation using a cantilever beam model; direction set via mouse drag
+- **Wind simulation** — GPU vertex deformation using a cantilever beam model; wind direction set by mouse
 
 ### Stretch Goal — Texture Mapping
+Three rendering modes, selected per-object via push constants:
 
 | Object | Mode | Description |
 |--------|------|-------------|
-| Pot    | Image texture | `pot_texture.png` loaded with `stb_image`, uploaded as `VkImage`, sampled in GLSL |
+| Pot | Image texture | `pot_texture.png` loaded with stb_image, uploaded as `VkImage`, sampled in GLSL |
 | Leaves | Procedural shader | Axial gradient · tapered midrib · 7 curved lateral veins · 8 sub-veins · micro-surface noise |
-| Stem   | Procedural shader | Base-to-tip gradient · 8 vertical stripes · horizontal node bands · highlight strip |
-
----
-
-## Build & Run
-
-**Requirements:** Vulkan SDK, GLFW 3.4, GLM — installed and on `PATH` / `VULKAN_SDK`
-
-```bash
-# Step 1: Compile shaders (generates .spv files)
-# Windows:
-compile-win.bat
-# macOS / Linux:
-bash compile-unx.bat
-
-# Step 2: Build
-make
-
-# Step 3: Run
-./FinalProject        # macOS/Linux
-FinalProject.exe      # Windows
-```
+| Stem | Procedural shader | Base-to-tip gradient · 8 vertical stripes · horizontal node bands · highlight strip |
 
 ---
 
@@ -77,6 +45,11 @@ FinalProject.exe      # Windows
 | `Shift` + arrows | Pan camera |
 | `=` / `-` | Zoom in / out |
 
+### Wind
+| Input | Action |
+|-------|--------|
+| `W` + mouse move | Set wind direction — leaves deform toward cursor |
+
 ### Scene Graph
 | Key | Action |
 |-----|--------|
@@ -93,10 +66,27 @@ FinalProject.exe      # Windows
 | `X` | Toggle helical twist |
 | `G` | Toggle rainbow color gradient |
 
-### Wind
-| Input | Action |
-|-------|--------|
-| `W` + drag | Set wind direction — leaves deform toward cursor |
+---
+
+## Build
+
+**Requirements:** Vulkan SDK, GLFW 3.4, GLM — installed and on `PATH` / `VULKAN_SDK`.
+
+```bash
+# Compile shaders first (generates .spv files)
+# Windows:
+compile-win.bat
+
+# macOS / Linux:
+bash compile-unx.bat
+
+# Build application
+make
+
+# Run
+./FinalProject        # macOS/Linux
+FinalProject.exe      # Windows
+```
 
 ---
 
@@ -105,12 +95,11 @@ FinalProject.exe      # Windows
 | Technology | Role |
 |------------|------|
 | Vulkan | Rendering pipeline (swap chain, descriptors, push constants, depth buffer) |
-| GLSL / SPIR-V | Vertex + fragment shaders compiled offline with `glslc` |
+| GLSL (SPIR-V) | Vertex + fragment shaders compiled offline with `glslc` |
 | GLFW | Window creation and input |
 | GLM | Math (vectors, matrices, transforms) |
 | stb_image | PNG/JPG texture loading (single-header) |
 | C++17 | Application logic |
-| MoltenVK | Vulkan-to-Metal translation on macOS Apple Silicon |
 
 ---
 
@@ -118,7 +107,7 @@ FinalProject.exe      # Windows
 
 ```
 .
-├── main.cpp
+├── main.cpp                          # Entry point
 ├── my_application.cpp / .h           # Scene setup, texture loading, wind, animation
 ├── my_bezier_curve_surface.cpp / .h  # Bézier evaluation, surface of revolution
 ├── my_camera.cpp / .h                # Orbit / pan / zoom / twist / fit-all
@@ -136,21 +125,12 @@ FinalProject.exe      # Windows
 │   ├── simple_shader.vert / .frag    # Phong lighting + texture selection
 │   └── point_curve_shader.vert/.frag # Edit-mode control point overlay
 └── textures/
-    └── pot_texture.png
+    └── pot_texture.png               # Pot surface texture
 ```
-
----
-
-## Known Limitations
-
-- Leaf opacity map shows rendering artefacts under certain lighting angles
-- Surface-of-revolution pot requires 5–6 control points for stable triangulation
-- Wind deformation is a linear cantilever approximation; extreme directions may cause visible stretching
-- No save/load for user-defined pot profiles
 
 ---
 
 ## Course Context
 
-**CPR 557 — Computer Graphics**, Iowa State University  
-Kibon Ku · `kibona9@iastate.edu`
+CPRE 557 — Computer Graphics, Iowa State University  
+Final project implementing: Bézier surfaces · surface of revolution · analytic normals · UV mapping · hierarchical scene graph · DFS traversal · Phong shading · Vulkan pipeline
