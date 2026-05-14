@@ -162,7 +162,5 @@ FinalProject.exe      # Windows
 
 ---
 
-## Course Context
-
-**CPR 557 — Computer Graphics**, Iowa State University  
-Kibon Ku · `kibona9@iastate.edu`
+## Contact Info  
+Kibon Ku · kibona9@iastate.edu · https://github.com/kibonku/CPR557_Final_Project
