@@ -14,7 +14,7 @@
 **Interactive Plant Modeler** procedurally constructs a complete potted plant scene from Bézier geometry, lets users design their own pot live at runtime, and simulates environmental wind response using GPU vertex deformation — all built on the **Vulkan** graphics API in C++17.
 
 <div align="center">
-  <img src="demo.gif" alt="demo" width="700">
+  <img src="assets/demo.gif" alt="demo" width="700">
 </div>
 
 ---
