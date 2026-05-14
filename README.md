@@ -122,24 +122,26 @@ FinalProject.exe      # Windows
 ```
 .
 ├── main.cpp
-├── my_application.cpp / .h           # Scene setup, texture loading, wind, animation
-├── my_bezier_curve_surface.cpp / .h  # Bézier evaluation, surface of revolution
-├── my_camera.cpp / .h                # Orbit / pan / zoom / twist / fit-all
-├── my_game_object.cpp / .h           # Scene graph node + transform hierarchy
-├── my_keyboard_controller.cpp / .h   # Input dispatch
-├── my_simple_render_factory.cpp / .h # DFS render traversal
-├── my_model.cpp / .h                 # Vertex / index buffer
-├── my_buffer.cpp / .h                # Vulkan buffer helper
-├── my_device.cpp / .h                # Vulkan device + command helpers
-├── my_renderer.cpp / .h              # Swap chain render loop
-├── my_pipeline.cpp / .h              # Graphics pipeline
-├── my_descriptors.cpp / .h           # Descriptor pool / set / layout
-├── my_swap_chain.cpp / .h            # Swap chain management
-├── shaders/
-│   ├── simple_shader.vert / .frag    # Phong lighting + texture selection
-│   └── point_curve_shader.vert/.frag # Edit-mode control point overlay
-└── textures/
-    └── pot_texture.png
+├── my_application.cpp / .h             # Scene setup, texture loading, wind, animation
+├── my_bezier_curve_surface.cpp / .h    # Bézier evaluation, surface of revolution
+├── my_camera.cpp / .h                  # Orbit / pan / zoom / twist / fit-all
+├── my_game_object.cpp / .h             # Scene graph node + transform hierarchy
+├── my_keyboard_controller.cpp / .h     # Input dispatch
+├── my_simple_render_factory.cpp / .h   # DFS render traversal
+├── my_model.cpp / .h                   # Vertex / index buffer
+├── my_buffer.cpp / .h                  # Vulkan buffer helper
+├── my_device.cpp / .h                  # Vulkan device + command helpers
+├── my_renderer.cpp / .h                # Swap chain render loop
+├── my_pipeline.cpp / .h                # Graphics pipeline
+├── my_descriptors.cpp / .h             # Descriptor pool / set / layout
+├── my_swap_chain.cpp / .h              # Swap chain management
+└── assets/
+  ├── demo.gif                       
+  ├── shaders/
+  │   ├── simple_shader.vert / .frag    # Phong lighting + texture selection
+  │   └── point_curve_shader.vert/.frag # Edit-mode control point overlay
+  └── textures/
+      └── pot_texture.png
 ```
 
 ---
